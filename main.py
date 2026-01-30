@@ -1,15 +1,14 @@
 # main.py
 # == Import ===
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
-import random
 import time
-from datetime import datetime
+import numpy as np
 
 time_start = time.time()
 
 # === Value ===
 # pos
-SCALE = 1
+SCALE = 5
 BG_PATER_SCALE = 0.1
 SIDE_Y_SCALE = int(2048 * SCALE)
 SIDE_X_SCALE = int(2048 * SCALE)
@@ -31,25 +30,57 @@ G_LIMITS = (20, 50)
 B_LIMITS = (20, 50)
 
 # often change
-R_LIMITS = (40, 70)
-G_LIMITS = (0, 0)
-B_LIMITS = (20, 40)
-COLOR_TEXT_BIG_SHADOW = (200, 0, 100) 
-COLOR_TEXT_BIG = (250, 0, 169) 
-TEXT_BIG = "OSU"
-BIG_TEXT_SCALE = 0.54
+app = {
+    "ig": True,
+    "git": False,
+    "discord": False,
+    "osu": False
+}
+if True:
+    if app["ig"]:
+        R_LIMITS = (25, 50)
+        G_LIMITS = (10, 30)
+        B_LIMITS = (20, 40)
+        COLOR_TEXT_BIG_SHADOW = (180, 0, 100)
+        COLOR_TEXT_BIG = (220, 0, 150)
+        TEXT_BIG = "INSTA"
+        BIG_TEXT_SCALE = 0.38
+    elif app["git"]:
+        R_LIMITS = (20, 50)
+        G_LIMITS = (20, 50)
+        B_LIMITS = (20, 50)
+        COLOR_TEXT_BIG_SHADOW = (200, 200, 200)
+        COLOR_TEXT_BIG = (225, 225, 225)
+        TEXT_BIG = "GIT"
+        BIG_TEXT_SCALE = 0.6
+    elif app["discord"]:
+        R_LIMITS = (0, 0)
+        G_LIMITS = (0, 0)
+        B_LIMITS = (20, 60)
+        COLOR_TEXT_BIG_SHADOW = (5, 0, 100)
+        COLOR_TEXT_BIG = (15, 0, 200)
+        TEXT_BIG = "DISC"
+        BIG_TEXT_SCALE = 0.49
+    elif app["osu"]:
+        R_LIMITS = (40, 70)
+        G_LIMITS = (0, 0)
+        B_LIMITS = (20, 40)
+        COLOR_TEXT_BIG_SHADOW = (200, 0, 100) 
+        COLOR_TEXT_BIG = (250, 0, 169) 
+        TEXT_BIG = "OSU"
+        BIG_TEXT_SCALE = 0.54
 
 file_name = f"0/Picture-{TEXT_BIG}"
 
 # to add
 ONOFF_ADD_IMAGE_OSU = False
 ONOFF_NOISE = True
-ONOFF_LATTER = True
+ONOFF_LETTER = True
 ONOFF_TEXT = True
 ONOFF_CRICLE = False
 
-ONOFF_SHOW = False
-ONOFF_SAVE = True
+ONOFF_SHOW = True
+ONOFF_SAVE = False
 
 # === Draw tools ===
 img = Image.new("RGB", image_scale, COLOR_BG)
@@ -63,19 +94,21 @@ bit_font = ImageFont.truetype("Fonts\\RussoOne-Regular.ttf", bit_font_size)
 
 # === BG Noise ===
 if ONOFF_NOISE:
-    small_size = int(SIDE_Y_SCALE * BG_PATER_SCALE)
-    noise_img = Image.new("RGB", (small_size, small_size))
-    noise_draw = ImageDraw.Draw(noise_img)
+    small_size = int(204.8)
 
-    for x in range(small_size):
-        for y in range(small_size):
-            r = random.randint(*R_LIMITS)
-            g = random.randint(*G_LIMITS)
-            b = random.randint(*B_LIMITS)
-            noise_draw.point((x, y), fill=(r, g, b))
+    # 2. Rychlé generování šumu (NumPy)
+    noise_array = np.random.randint(
+        [R_LIMITS[0], G_LIMITS[0], B_LIMITS[0]],
+        [R_LIMITS[1] + 1, G_LIMITS[1] + 1, B_LIMITS[1] + 1],
+        (small_size, small_size, 3), 
+        dtype=np.uint8
+    )
+    noise_img = Image.fromarray(noise_array)
 
-    bg_texture = noise_img.resize((SIDE_X_SCALE, SIDE_Y_SCALE), resample=Image.NEAREST)
-    bg_texture = bg_texture.filter(ImageFilter.GaussianBlur(radius=20))
+
+    noise_img = noise_img.filter(ImageFilter.GaussianBlur(radius=2))
+    bg_texture = noise_img.resize((SIDE_X_SCALE, SIDE_Y_SCALE), resample=Image.BILINEAR)
+    
     img.paste(bg_texture)
 
 # === Add image (osu!) ===
@@ -94,7 +127,7 @@ if ONOFF_ADD_IMAGE_OSU:
     img.paste(colored_layer, (add_img_pos_x, add_img_pos_y), add_img_size)
 
 # === Draw Text (latter) ===
-if ONOFF_LATTER:
+if ONOFF_LETTER:
     text_pos_x = CENTER_X
     text_pos_y = int(SIDE_Y_SCALE // 8 * 3)
 
