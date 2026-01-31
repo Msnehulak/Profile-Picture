@@ -1,169 +1,194 @@
-# main.py
-# == Import ===
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import time
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-time_start = time.time()
+class ImageGenerator:
+    def __init__(self, scale=5, text_main="SnehulakTV_"):
+        # Nastavení rozměrů
+        self.scale = scale
+        self.side_x = int(2048 * scale)
+        self.side_y = int(2048 * scale)
+        self.center_x = self.side_x // 2
+        self.center_y = self.side_y // 2
+        self.image_scale = (self.side_x, self.side_y)
 
-# === Value ===
-# pos
-SCALE = 5
-BG_PATER_SCALE = 0.1
-SIDE_Y_SCALE = int(2048 * SCALE)
-SIDE_X_SCALE = int(2048 * SCALE)
-CENTER_X = SIDE_X_SCALE // 2
-CENTER_Y = SIDE_Y_SCALE // 2
+        # Hlavní text a barvy
+        self.text_main = text_main
+        self.color_bg = (25, 25, 25)
+        self.text_color_shadow = (150, 150, 150)
+        self.text_color = (255, 255, 255)
+        
+        # Defaultní limity pro šum
+        self.r_limit = (20, 50)
+        self.g_limit = (20, 50)
+        self.b_limit = (20, 50)
+        
+        # Inicializace proměnných pro velký text (aby neházelo chybu, když se nenačte config)
+        self.text_big_text = ""
+        self.text_big_scale = 0.5
+        self.text_big_color = (255, 255, 255)
+        self.text_big_color_shadow = (100, 100, 100)
 
-# text
-TEXT_MAIN = "SnehulakTV_"
+    def LoadConfig(self, ver, app_name):
+        if ver == 1.0:
+            configs = {
+                "ig": {
+                    "limits": ((25, 50), (10, 30), (20, 40)),
+                    "text": "INSTA",
+                    "scale": 0.38,
+                    "colors": ((220, 0, 150), (180, 0, 100)), # (Main, Shadow)
+                    "icon": "Icon/ig.png"
+                },
+                "git": {
+                    "limits": ((20, 50), (20, 50), (20, 50)),
+                    "text": "GIT",
+                    "scale": 0.6,
+                    "colors": ((225, 225, 225), (200, 200, 200)),
+                    "icon": "Icon/git.png"
+                },
+                "disc": {
+                    "limits": ((0, 0), (0, 0), (20, 60)),
+                    "text": "DISC",
+                    "scale": 0.49,
+                    "colors": ((15, 0, 200), (5, 0, 100)),
+                    "icon": "Icon/discord.png"
+                },
+                "osu": {
+                    "limits": ((40, 70), (0, 0), (20, 40)),
+                    "text": "OSU",
+                    "scale": 0.54,
+                    "colors": ((250, 0, 169), (200, 0, 100)),
+                    "icon": "Icon/osu.png"
+                }
+            }
 
-# color
-COLOR_BG = (25, 25, 25)
-COLOR_1 = (255, 0, 0)
-COLOR_TEXT_SHADOW = (150, 150, 150)
-COLOR_TEXT = (255, 255, 255)
-image_scale = (SIDE_X_SCALE, SIDE_Y_SCALE)
+            # Vyhledání aplikace v deníku (pokud neexistuje, hodí to chybu nebo default)
+            app_name = app_name.lower()
+            if app_name in configs:
+                conf = configs[app_name]
+                
+                # Rozřazení hodnot do proměnných třídy
+                self.r_limit, self.g_limit, self.b_limit = conf["limits"]
+                self.text_big_text = conf["text"]
+                self.text_big_scale = conf["scale"]
+                self.text_big_color, self.text_big_color_shadow = conf["colors"]
+                self.icon_path = conf["icon"] # Cesta k ikoně pro budoucí použití
+            else:
+                print(f"⚠️ Konfigurace pro '{app_name}' nebyla nalezena!")
+                return
 
-R_LIMITS = (20, 50)
-G_LIMITS = (20, 50)
-B_LIMITS = (20, 50)
+            # Načtení fontů (vždy po nastavení scale a textu)
+            try:
+                font_path = "Fonts\\RussoOne-Regular.ttf"
+                self.font = ImageFont.truetype(font_path, int(235 * self.scale))
+                self.big_font = ImageFont.truetype(font_path, int(1500 * self.scale * self.text_big_scale))
+            except OSError:
+                print("⚠️ Font 'RussoOne' nenalezen, používám default.")
+                self.font = self.big_font = ImageFont.load_default()
+      
+    def GetTools(self):
+        self.img = Image.new("RGB", self.image_scale, self.color_bg)
+        self.draw = ImageDraw.Draw(self.img)
 
-# often change
-app = {
-    "ig": True,
-    "git": False,
-    "discord": False,
-    "osu": False
-}
-if True:
-    if app["ig"]:
-        R_LIMITS = (25, 50)
-        G_LIMITS = (10, 30)
-        B_LIMITS = (20, 40)
-        COLOR_TEXT_BIG_SHADOW = (180, 0, 100)
-        COLOR_TEXT_BIG = (220, 0, 150)
-        TEXT_BIG = "INSTA"
-        BIG_TEXT_SCALE = 0.38
-    elif app["git"]:
-        R_LIMITS = (20, 50)
-        G_LIMITS = (20, 50)
-        B_LIMITS = (20, 50)
-        COLOR_TEXT_BIG_SHADOW = (200, 200, 200)
-        COLOR_TEXT_BIG = (225, 225, 225)
-        TEXT_BIG = "GIT"
-        BIG_TEXT_SCALE = 0.6
-    elif app["discord"]:
-        R_LIMITS = (0, 0)
-        G_LIMITS = (0, 0)
-        B_LIMITS = (20, 60)
-        COLOR_TEXT_BIG_SHADOW = (5, 0, 100)
-        COLOR_TEXT_BIG = (15, 0, 200)
-        TEXT_BIG = "DISC"
-        BIG_TEXT_SCALE = 0.49
-    elif app["osu"]:
-        R_LIMITS = (40, 70)
-        G_LIMITS = (0, 0)
-        B_LIMITS = (20, 40)
-        COLOR_TEXT_BIG_SHADOW = (200, 0, 100) 
-        COLOR_TEXT_BIG = (250, 0, 169) 
-        TEXT_BIG = "OSU"
-        BIG_TEXT_SCALE = 0.54
-
-file_name = f"0/Picture-{TEXT_BIG}"
-
-# to add
-ONOFF_ADD_IMAGE_OSU = False
-ONOFF_NOISE = True
-ONOFF_LETTER = True
-ONOFF_TEXT = True
-ONOFF_CRICLE = False
-
-ONOFF_SHOW = True
-ONOFF_SAVE = False
-
-# === Draw tools ===
-img = Image.new("RGB", image_scale, COLOR_BG)
-draw = ImageDraw.Draw(img)
-
-font_size = int(235 * SCALE)
-font = ImageFont.truetype("Fonts\\RussoOne-Regular.ttf", font_size)
-
-bit_font_size = int(1500 * SCALE * BIG_TEXT_SCALE)
-bit_font = ImageFont.truetype("Fonts\\RussoOne-Regular.ttf", bit_font_size)
-
-# === BG Noise ===
-if ONOFF_NOISE:
-    small_size = int(204.8)
-
-    # 2. Rychlé generování šumu (NumPy)
-    noise_array = np.random.randint(
-        [R_LIMITS[0], G_LIMITS[0], B_LIMITS[0]],
-        [R_LIMITS[1] + 1, G_LIMITS[1] + 1, B_LIMITS[1] + 1],
-        (small_size, small_size, 3), 
-        dtype=np.uint8
-    )
-    noise_img = Image.fromarray(noise_array)
-
-
-    noise_img = noise_img.filter(ImageFilter.GaussianBlur(radius=2))
-    bg_texture = noise_img.resize((SIDE_X_SCALE, SIDE_Y_SCALE), resample=Image.BILINEAR)
+    def AddNoise(self):
+        small_size = 205
+        noise_array = np.random.randint(
+            [self.r_limit[0], self.g_limit[0], self.b_limit[0]],
+            [self.r_limit[1] + 1, self.g_limit[1] + 1, self.b_limit[1] + 1],
+            (small_size, small_size, 3), 
+            dtype=np.uint8
+        )
+        noise_img = Image.fromarray(noise_array)
+        noise_img = noise_img.filter(ImageFilter.GaussianBlur(radius=2))
+        bg_texture = noise_img.resize((self.side_x, self.side_y), resample=Image.BILINEAR)
+        self.img.paste(bg_texture)
     
-    img.paste(bg_texture)
+    def AddBigText(self):
+        text_pos_x = self.center_x
+        text_pos_y = int(self.side_y // 8 * 3)
 
-# === Add image (osu!) ===
-if ONOFF_ADD_IMAGE_OSU:
-    add_img_size_x = int(SIDE_X_SCALE / 11 * 6)
-    add_img_size_y = int(SIDE_Y_SCALE / 11 * 6)
-    add_img_pos_x = int(CENTER_X - add_img_size_x // 2)
-    add_img_pos_y = int(CENTER_Y - add_img_size_y // 4 * 3)
+        shadow_offset = int(15 * self.scale)
+        
+        # Shadow
+        self.draw.text((text_pos_x + shadow_offset, text_pos_y + shadow_offset), 
+                       self.text_big_text, font=self.big_font, fill=self.text_big_color_shadow, anchor="mm")
+        # Main
+        self.draw.text((text_pos_x, text_pos_y), 
+                       self.text_big_text, font=self.big_font, fill=self.text_big_color, anchor="mm")
+        
+    def Addtext(self):
+        # Opraveno text_pos_x z center_y na center_x
+        text_pos_x = self.center_x 
+        text_pos_y = int(self.side_y // 4 * 3)
 
-    add_img = Image.open("Icon/osu.png").convert("RGBA")
-    add_img_size = add_img.resize((add_img_size_x, add_img_size_y), resample=Image.LANCZOS)
+        shadow_offset = int(15 * self.scale)
 
-    logo_color = (250, 0, 169) 
-    colored_layer = Image.new("RGB", (add_img_size_x, add_img_size_y), logo_color)
+        # Shadow
+        self.draw.text((text_pos_x + shadow_offset, text_pos_y + shadow_offset), 
+                       self.text_main, font=self.font, fill=self.text_color_shadow, anchor="mm")
+        # Main
+        self.draw.text((text_pos_x, text_pos_y), 
+                       self.text_main, font=self.font, fill=self.text_color, anchor="mm")
+    
 
-    img.paste(colored_layer, (add_img_pos_x, add_img_pos_y), add_img_size)
+    def SaveShow(self, save=False, show=True, path="Save/"):
+        if show:
+            self.img.show()
+        if save:
+            self.img.save(f"{path}Picture-{self.text_big_text}.png")
 
-# === Draw Text (latter) ===
-if ONOFF_LETTER:
-    text_pos_x = CENTER_X
-    text_pos_y = int(SIDE_Y_SCALE // 8 * 3)
 
-    shatow_text_offset = (15 * SCALE)
-    shatow_text_pos_x = int(text_pos_x + shatow_text_offset)
-    shatow_text_pos_y = int(text_pos_y + shatow_text_offset)
+if __name__ == "__main__":
+    u_scale = 1
+    u_ver = 1.0
+    u_app = "ig"
+    u_save = True
+    u_path = "Save/"
+    while True:
+        while True:
+            print("\n--- Banner Generator Settings ---")
+            print(f"1. Verze      = {u_ver}")
+            print(f"2. Aplikace   = {u_app}")
+            print(f"3. Škálování  = {u_scale}")
+            print(f"4. Uložení    = {'ANO' if u_save else 'NE'}")
+            print(f"5. Složka     = {u_path}")
+            print("6. SPUSTIT GENEROVÁNÍ")
+            print("7. Konec")
 
-    draw.text((shatow_text_pos_x, shatow_text_pos_y), TEXT_BIG, font=bit_font, fill=COLOR_TEXT_BIG_SHADOW, anchor="mm")
-    draw.text((text_pos_x, text_pos_y), TEXT_BIG, font=bit_font, fill=COLOR_TEXT_BIG, anchor="mm")
+            inp = input("Pro změnu zvolte 1-5, pro start 5: ")
 
-# === Draw Text (Main) ===
-if ONOFF_TEXT:
-    text_pos_x = CENTER_X
-    text_pos_y = int(SIDE_Y_SCALE // 4 * 3)
+            if inp == "1":
+                u_ver = float(input("Nová verze (např. 1.0): "))
+            elif inp == "2":
+                u_app = input("Nová aplikace (ig, git, disc, osu): ")
+            elif inp == "3":
+                u_scale = int(input("Nové škálování (1-10): "))    
+            elif inp == "4":
+                val = input("Uložit? (y/n): ").lower()
+                u_save = val == 'y' or val == 'ano' or val == ''
+            elif inp == "5":
+                u_path = input("Nová složka: ")
+            elif inp == "6":
+                break
+            elif inp == "7":
+                exit()
+            else:
+                print("Neplatná volba, zkus to znovu.")
 
-    shatow_text_offset = (15 * SCALE)
-    shatow_text_pos_x = int(text_pos_x + shatow_text_offset)
-    shatow_text_pos_y = int(text_pos_y + shatow_text_offset)
+        # === Spuštění generátoru ===
+        print(f"\n🚀 Spouštím generování pro {u_app.upper()}...")
+        time_start = time.time()
+        
+        generator = ImageGenerator(scale=u_scale)
+        generator.LoadConfig(u_ver, u_app)
+        generator.GetTools()
+        generator.AddNoise()
+        generator.AddBigText()
+        generator.Addtext()
+        
+        time_end = time.time()
+        print(f"✅ Hotovo za {round(time_end - time_start, 2)}s!")
+        
+        generator.SaveShow(save=u_save, show=True, path=u_path)
 
-    draw.text((shatow_text_pos_x, shatow_text_pos_y), TEXT_MAIN, font=font, fill=COLOR_TEXT_SHADOW, anchor="mm")
-    draw.text((text_pos_x, text_pos_y), TEXT_MAIN, font=font, fill=COLOR_TEXT, anchor="mm")
 
-# === Draw Cricle ===
-if ONOFF_CRICLE:
-    ellipse_pos_x = CENTER_X
-    ellipse_pos_y = CENTER_Y
-
-    draw.ellipse([0, 0, SIDE_X_SCALE, SIDE_Y_SCALE], fill=None, outline=(255, 255, 255), width=1)
-
-# === Save ===
-if ONOFF_SHOW:
-    img.show()
-
-if ONOFF_SAVE:
-    img.save(f"Save/{file_name}.png")
-
-time_end = time.time()
-
-print(f" - Done - in {time_end - time_start}s")
